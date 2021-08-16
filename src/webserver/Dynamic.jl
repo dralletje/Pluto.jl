@@ -160,6 +160,7 @@ function notebook_to_js(notebook::Notebook)
                 "instantiated" => notebook.nbpkg_ctx_instantiated,
             )
         end,
+        "app_cells" => notebook.app_cells,
         "cell_execution_order" => cell_id.(collect(topological_order(notebook))),
     )
 end
@@ -212,6 +213,7 @@ struct Wildcard end
 abstract type Changed end
 struct CodeChanged <: Changed end
 struct FileChanged <: Changed end
+struct AppCellsChanged <: Changed end
 struct BondChanged <: Changed
     bond_name::Symbol
 end
@@ -265,9 +267,14 @@ const effects_of_changed_state = Dict(
             Firebasey.applypatch!(request.notebook, patch)
             [BondChanged(name)]
         end,
-    )
+    ),
+    "app_cells" => function(rest...; request::ClientRequest, patch::Firebasey.JSONPatch)
+        Firebasey.applypatch!(request.notebook, patch)
+        [AppCellsChanged()]
+    end,
 )
 
+import JSON3
 
 responses[:update_notebook] = function response_update_notebook(🙋::ClientRequest)
     require_notebook(🙋)
@@ -308,6 +315,15 @@ responses[:update_notebook] = function response_update_notebook(🙋::ClientRequ
         # (You can put a log in save_notebook to track how often the file is saved)
         if FileChanged() ∈ changes && CodeChanged() ∉ changes
              🙋.session.options.server.disable_writing_notebook_files || save_notebook(notebook)
+        end
+
+        if AppCellsChanged() ∈ changes
+            if 🙋.notebook.app_cells_path === nothing
+                @warn "App cells was changed, but there is no file present to write to"
+            else
+                write(🙋.notebook.app_cells_path, JSON3.write(🙋.notebook.app_cells))
+                @info "Saved the app cells!"
+            end
         end
 
         let bond_changes = filter(x -> x isa BondChanged, changes)

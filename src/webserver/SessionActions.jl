@@ -19,6 +19,9 @@ function open_url(session::ServerSession, url::AbstractString; kwargs...)
     open(session, path; kwargs...)
 end
 
+import JSON3
+import UUIDs: UUID
+
 function open(session::ServerSession, path::AbstractString; run_async=true, compiler_options=nothing, as_sample=false)
     if as_sample
         new_filename = "sample " * without_pluto_file_extension(basename(path))
@@ -35,6 +38,28 @@ function open(session::ServerSession, path::AbstractString; run_async=true, comp
     end
     
     nb = load_notebook(tamepath(path); disable_writing_notebook_files=session.options.server.disable_writing_notebook_files)
+
+    @info "Loaded notebook"
+    try
+        @info "#1"
+        app_cells_path = tamepath(path) * "-app.json"
+        _app_info = JSON3.read(read(app_cells_path, String))
+        @info "#2"
+        app_info_ = []
+        @info "#3"
+        for (key, value) in _app_info
+            push!(app_info_, UUID(String(key)) => value)
+        end
+        @info "#4"
+        app_info = Dict(app_info_)
+        @info "#5"
+        nb.app_cells_path = app_cells_path
+        nb.app_cells = app_info
+        @info "Loaded app cells" app_info
+    catch err
+        @error "Loading file" err
+        nothing
+    end
 
     # overwrites the notebook environment if specified
     if compiler_options !== nothing

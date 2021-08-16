@@ -54,6 +54,9 @@ Base.@kwdef mutable struct Notebook
     wants_to_interrupt::Bool=false
 
     bonds::Dict{Symbol,BondValue}=Dict{Symbol,BondValue}()
+
+    app_cells_path::Union{Nothing,String}=nothing
+    app_cells::Dict{UUID,Dict{Symbol,Any}}=Dict{UUID,Dict{Symbol,Any}}()
 end
 
 Notebook(cells::Array{Cell,1}, path::AbstractString, notebook_id::UUID) = Notebook(
